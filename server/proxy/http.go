@@ -165,6 +165,13 @@ reset:
 		logs.Warn(err.Error())
 		return
 	}
+
+	// 判断访问地址是否在黑名单内
+	if common.IsBlackIp(c.RemoteAddr().String(), host.Client.VerifyKey, host.Client.BlackIpList) {
+		c.Close()
+		return
+	}
+
 	lk = conn.NewLink("http", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, r.RemoteAddr, host.Target.LocalProxy)
 	if target, err = s.bridge.SendLinkInfo(host.Client.Id, lk, nil); err != nil {
 		logs.Notice("connect to target %s error %s", lk.Host, err)
@@ -188,7 +195,7 @@ reset:
 			// http 这里使用数据包交换
 			wg1 := new(sync.WaitGroup)
 			wg1.Add(1)
-			err := goroutine.CopyConnsPool.Invoke(goroutine.NewConns(connClient, c, host.Client.Flow, wg1))
+			err := goroutine.CopyConnsPool.Invoke(goroutine.NewConns(connClient, c, host.Client.Flow, wg1, nil))
 			wg1.Wait()
 			if err != nil {
 				logs.Error(err)
@@ -201,7 +208,7 @@ reset:
 	for {
 		//change the host and header and set proxy setting
 		common.ChangeHostAndHeader(r, host.HostChange, host.HeaderChange, c.Conn.RemoteAddr().String(), s.addOrigin)
-		logs.Trace("%s request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, c.RemoteAddr().String(), lk.Host)
+		logs.Info("%s request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, c.RemoteAddr().String(), lk.Host)
 		//write
 		lenConn = conn.NewLenConn(connClient)
 		if err := r.Write(lenConn); err != nil {
